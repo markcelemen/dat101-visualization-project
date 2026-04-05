@@ -279,7 +279,7 @@ def build_horizontal_stacked_bar(map_gdf: gpd.GeoDataFrame, selected_regions: Li
     return fig
 
 
-def build_risk_heatmap(risk_df: pd.DataFrame, highlighted_region: Optional[str] = None) -> go.Figure:
+def build_risk_heatmap(risk_df: pd.DataFrame, selected_regions: List[str] = None, highlighted_region: Optional[str] = None) -> go.Figure:
     """Generates the heatmap displaying frequency and impact of disasters by region"""
     heatmap_df = risk_df[[
         'PH Region',
@@ -290,6 +290,14 @@ def build_risk_heatmap(risk_df: pd.DataFrame, highlighted_region: Optional[str] 
     ]].copy()
     heatmap_df.columns = ['Region', 'Frequency', 'Human Impact', 'Economic Impact', 'Disaster Risk Score']
     heatmap_df = heatmap_df.set_index('Region').sort_values('Disaster Risk Score', ascending=True)
+
+    # Pin selected regions to the top; remaining rows keep their original (risk-score) order
+    if selected_regions:
+        selected_set = set(selected_regions)
+        pinned = [r for r in heatmap_df.index if r in selected_set]
+        rest = [r for r in heatmap_df.index if r not in selected_set]
+        if rest:  # only reorder when there are unselected rows to push below
+            heatmap_df = heatmap_df.loc[rest + pinned]
 
     # Build multi-line hover strings for diagnostic detail in the heatmap
     hover_array = []
@@ -401,7 +409,7 @@ def main():
         heatmap_ref = None
 
     # Final Risk Matrix Visualization
-    st.plotly_chart(build_risk_heatmap(risk_df, highlighted_region=heatmap_ref), use_container_width=True)
+    st.plotly_chart(build_risk_heatmap(risk_df, selected_regions=selected_regions, highlighted_region=heatmap_ref), use_container_width=True)
 
 
 if __name__ == "__main__":
