@@ -146,12 +146,18 @@ def fetch_and_preprocess_data() -> Tuple[pd.DataFrame, gpd.GeoDataFrame, List[st
 # --- 3. UI STYLING & HELPERS ---
 
 def inject_custom_css():
-    """Injects CSS to hide default Streamlit elements and style the metric cards"""
     st.set_page_config(layout="wide", page_title="NAVI Hub", page_icon="🇵🇭")
     st.markdown("""
         <style>
         button.viewerBadge_link__1S137, .main header, a.header-anchor { display: none !important; }
-        .stMetric { background-color: #ffffff; padding: 15px; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); border: 1px solid #eee; text-align: center; height: 120px; }
+        .stMetric { 
+            padding: 15px; 
+            border-radius: 8px; 
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1); 
+            border: 1px solid #eee; 
+            text-align: center; 
+            height: 120px; 
+        }
         </style>
     """, unsafe_allow_html=True)
 
@@ -267,13 +273,13 @@ def build_horizontal_stacked_bar(map_gdf: gpd.GeoDataFrame, selected_regions: Li
     for i, row in plot_df.iterrows():
         fig.add_annotation(x=row['TOTAL'], y=_shorten_region_name(row['REGION']),
                            text=f" ₱{row['TOTAL']:,.0f}", showarrow=False,
-                           xanchor='left', font=dict(size=11, color='black'))
+                           xanchor='left', font=dict(size=11))
 
     dynamic_height = max(300, len(selected_regions) * BAR_LENGTH_PER_REGION)
     fig.update_layout(barmode='stack', template="plotly_white", height=dynamic_height,
                       margin={"t": 30, "b": 40, "l": 150, "r": 80},
                       xaxis=dict(title="Monthly Expenditure (PHP)", tickformat=",.0f", tickprefix="₱", showgrid=True),
-                      yaxis=dict(title=None, tickfont=dict(size=12, color='black')),
+                      yaxis=dict(title=None, tickfont=dict(size=12)),
                       legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0,
                                   traceorder='normal', itemclick=False, itemdoubleclick=False))
     return fig
@@ -326,23 +332,24 @@ def build_risk_heatmap(risk_df: pd.DataFrame, highlighted_region: Optional[str] 
         colorbar=dict(
             title="Risk Severity (0-100)", title_side='right',
             tickmode='linear', tick0=0, dtick=10,
-            len=0.75, thickness=15,
-            tickfont=dict(color='black'), title_font=dict(color='black')
+            len=0.75, thickness=15
         ),
         xgap=2, ygap=2
     ))
     fig.update_layout(
         title={'text': '<b>Disaster Risk Profile Diagnostic</b>', 'x': 0.5, 'xanchor': 'center',
-               'font': {'size': 18, 'color': 'black'}},
+               'font': {'size': 18}},
         xaxis=dict(title='Risk Component', side='bottom',
-                   tickfont=dict(size=11, color='black'), tickangle=-45, showgrid=False),
+                   tickfont=dict(size=11), tickangle=-45, showgrid=False),
         yaxis=dict(title='Regions', tickmode='array',
                    tickvals=list(heatmap_df.index), ticktext=y_labels,
-                   tickfont=dict(size=11, color='black'), showgrid=False),
-        plot_bgcolor='white', paper_bgcolor='white',
+                   tickfont=dict(size=11), showgrid=False),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
         margin=dict(l=250, r=150, t=100, b=120),
         height=700
     )
+    fig.update_traces(colorbar_tickfont_color=None, colorbar_title_font_color=None)
     return fig
 
 
