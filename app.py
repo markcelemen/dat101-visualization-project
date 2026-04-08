@@ -69,7 +69,7 @@ OFFICIAL_ORDER = [
 def get_affordability_status(ratio: float) -> Tuple[str, str]:
     """Helper function to return the affordability status given the ratio"""
     # Using a 1% buffer for 'Break-even' (0.99 to 1.01)
-    if ratio > 1.01:
+    if ratio < 0.99:
         return "Affordable", GREEN
     if 0.99 <= ratio <= 1.01:
         return "Break-even", YELLOW
@@ -300,7 +300,7 @@ def build_horizontal_stacked_bar(map_gdf: gpd.GeoDataFrame, selected_regions: Li
 
     # Floating annotations for the total regional cost at the end of each bar
     for i, row in plot_df.iterrows():
-        ratio = user_salary / row['TOTAL']
+        ratio = row['TOTAL'] / user_salary
         status_text, status_color = get_affordability_status(ratio)
         icon = f"→   {status_text}"
 
@@ -398,7 +398,7 @@ def main():
     # Dynamic column for choropleth mapping based on selected categories
     map_gdf['DYNAMIC_Z'] = map_gdf[selected_cats].sum(axis=1) if selected_cats else 0
 
-    map_gdf['Aff_Ratio'] = user_salary / map_gdf['DYNAMIC_Z'].replace(0, 1)
+    map_gdf['Aff_Ratio'] = map_gdf['DYNAMIC_Z'].replace(0, 1) / user_salary
     # Create the Status and Color columns using your variables
     status_data = map_gdf['Aff_Ratio'].apply(get_affordability_status)
     map_gdf['Aff_Status'] = status_data.apply(lambda x: x[0])
@@ -427,10 +427,10 @@ def main():
                       delta=f"₱{sel_avg - nat_avg:,.2f} vs National Average",
                       help="The average cost of living for your currently selected PH regions")
         with k3:
-            sel_ratio = user_salary / sel_avg if sel_avg > 0 else 0
+            sel_ratio = sel_avg / user_salary if sel_avg > 0 else 0
             st.metric("Your Affordability Ratio", f"{sel_ratio:.2f}",
-                      delta=get_affordability_status(sel_ratio)[0], delta_color="normal" if sel_ratio >= 1 else "inverse",
-                      help="Calculated as PersonalMonthlyIncome / AverageMonthlyExpenditure ")
+                      delta=get_affordability_status(sel_ratio)[0], delta_color="normal" if sel_ratio < 1.01 else "inverse",
+                      help="Calculated as AverageMonthlyExpenditure / PersonalMonthlyIncome")
 
     # Main Geospatial Navigator
     st.plotly_chart(build_regional_choropleth(map_gdf, indices_to_highlight, user_salary), use_container_width=True)
