@@ -354,31 +354,39 @@ def build_risk_heatmap(risk_df: pd.DataFrame, sort_order: str = "Selected Value/
     fig = go.Figure()
 
     if filter_to_selected and selected_regions:
-        # Background trace: all rows in grey (keeps context, still hoverable)
+        selected_set = set(selected_regions)
+        all_y = list(heatmap_df.index)
+        all_x = heatmap_df.columns.tolist()
+        ncols = len(all_x)
+
+        grey_z, grey_hover, amber_z, amber_hover = [], [], [], []
+        for i, region in enumerate(all_y):
+            row_vals = heatmap_df.iloc[i].values.tolist()
+            if region in selected_set:
+                grey_z.append([None] * ncols)
+                grey_hover.append(hover_array[i])
+                amber_z.append(row_vals)
+                amber_hover.append(hover_array[i])
+            else:
+                grey_z.append(row_vals)
+                grey_hover.append(hover_array[i])
+                amber_z.append([None] * ncols)
+                amber_hover.append(hover_array[i])
+
         fig.add_trace(go.Heatmap(
-            z=heatmap_df.values,
-            x=heatmap_df.columns,
-            y=heatmap_df.index,
+            z=grey_z, x=all_x, y=all_y,
             colorscale=GREY_PALETTE,
-            customdata=hover_array,
+            customdata=grey_hover,
             hovertemplate='%{customdata}<extra></extra>',
-            showscale=False,
-            zmin=0, zmax=100,
+            showscale=False, zmin=0, zmax=100,
             xgap=2, ygap=2
         ))
-        # Foreground trace: selected rows only in full amber
-        selected_set = set(selected_regions)
-        fg_df = heatmap_df[heatmap_df.index.isin(selected_set)]
-        fg_hover = [hover_array[i] for i, r in enumerate(heatmap_df.index) if r in selected_set]
         fig.add_trace(go.Heatmap(
-            z=fg_df.values,
-            x=fg_df.columns,
-            y=fg_df.index,
+            z=amber_z, x=all_x, y=all_y,
             colorscale=AMBER_PALETTE,
-            customdata=fg_hover,
+            customdata=amber_hover,
             hovertemplate='%{customdata}<extra></extra>',
-            showscale=True,
-            zmin=0, zmax=100,
+            showscale=True, zmin=0, zmax=100,
             colorbar=colorbar_cfg,
             xgap=2, ygap=2
         ))
