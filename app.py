@@ -427,10 +427,24 @@ def main():
                       delta=f"₱{sel_avg - nat_avg:,.2f} vs National Average",
                       help="The average cost of living for your currently selected PH regions")
         with k3:
-            sel_ratio = sel_avg / user_salary if sel_avg > 0 else 0
-            st.metric("Your Affordability Ratio", f"{sel_ratio:.2f}",
-                      delta=get_affordability_status(sel_ratio)[0], delta_color="normal" if sel_ratio < 1.01 else "inverse",
-                      help="Calculated as AverageMonthlyExpenditure / PersonalMonthlyIncome")
+            # Ratio: Cost / Income (Lower is better)
+            sel_ratio = sel_avg / user_salary if user_salary > 0 else 0
+            # Define the help text with clear breakdowns
+            ratio_help = """
+            **Affordability Ratio Calculation:**
+            `Average Monthly Expenditure / Personal Monthly Income`
+            **What the values mean:**
+            * 🟢 **< 0.99 (Affordable):** Your income comfortably covers the regional cost of living.
+            * 🟡 **0.99 - 1.01 (Break-even):** Your income exactly matches the basic regional costs.
+            * 🔴 **> 1.01 (Unaffordable):** Regional costs exceed your monthly income.
+            """
+            st.metric(
+                "Your Affordability Ratio",
+                f"{sel_ratio:.2f}",
+                delta=get_affordability_status(sel_ratio)[0],
+                delta_color="normal" if sel_ratio < 1.01 else "inverse",
+                help=ratio_help
+            )
 
     # Main Geospatial Navigator
     st.plotly_chart(build_regional_choropleth(map_gdf, indices_to_highlight, user_salary), use_container_width=True)
