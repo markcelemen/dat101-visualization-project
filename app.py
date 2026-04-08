@@ -33,6 +33,10 @@ AMBER_PALETTE = [
 LIGHT_AMBER = AMBER_PALETTE[0][1]
 DARK_AMBER = AMBER_PALETTE[-1][-1]
 
+GREEN = "#4CAF50"
+YELLOW = "#FFD300"
+RED = "#F44336"
+
 # Mapping expenditure types to distinct colors for the stacked bar charts
 CATEGORY_COLORS = {
     "FOOD_MONTHLY":          "#2196F3",  # Blue
@@ -62,11 +66,14 @@ OFFICIAL_ORDER = [
     "Bangsamoro Autonomous Region in Muslim Mindanao"
 ]
 
-
-def get_status(ratio: float) -> str:
-    if ratio > 1: return "Affordable"
-    if ratio == 1: return "Break-even"
-    return "Unaffordable"
+def get_affordability_status(ratio: float) -> Tuple[str, str]:
+    """Helper function to return the affordability status given the ratio"""
+    # Using a 1% buffer for 'Break-even' (0.99 to 1.01)
+    if ratio > 1.01:
+        return "Affordable", GREEN
+    if 0.99 <= ratio <= 1.01:
+        return "Break-even", YELLOW
+    return "Unaffordable", RED
 
 class Expenditure(Enum):
     """Enum to handle expenditure category strings and UI labels"""
@@ -164,6 +171,13 @@ def inject_custom_css():
             text-align: center; 
             height: 120px; 
         }
+        /* Minimal footer style */
+        .project-footer {
+            text-align: center;
+            color: gray;
+            font-size: 0.85rem;
+            padding-top: 20px;
+        }
         </style>
     """, unsafe_allow_html=True)
 
@@ -186,9 +200,10 @@ def initialize_sidebar_controls(region_options: List[str]) -> Tuple[List[str], L
     st.sidebar.title("🔍 Navigator Controls")
 
     # Region Multi-selector toggle
-    st.sidebar.markdown("### 🗺️ Select Regions")
-    select_all = st.sidebar.toggle("Select All Regions", value=True)
+    st.sidebar.markdown("### 🗺️ Select Regions",
+                        help="Choose which PH regions to include in the average calculations and charts.")
 
+    select_all = st.sidebar.toggle("Select All Regions", value=True)
     if select_all:
         selected_regions = region_options
         st.sidebar.info(f"All {len(region_options)} regions selected.")
@@ -201,7 +216,8 @@ def initialize_sidebar_controls(region_options: List[str]) -> Tuple[List[str], L
             st.sidebar.info(f"{len(selected_regions)} of {len(region_options)} regions selected.")
 
     st.sidebar.markdown("---")
-    st.sidebar.markdown("### 💰 Expenditure Categories")
+    st.sidebar.markdown("### 💰 Expenditure Categories",
+                        help="Toggle specific spending types to see how they impact regional affordability.")
 
     # Bulk action buttons for expenditure checkboxes
     def bulk_set_category_state(is_enabled: bool):
@@ -222,15 +238,17 @@ def initialize_sidebar_controls(region_options: List[str]) -> Tuple[List[str], L
             active_categories.append(category.value)
 
     st.sidebar.markdown("---")
-    st.sidebar.markdown("### 💳 Personal Finance")
-    user_salary = st.sidebar.number_input("Monthly Salary (PHP)", min_value=0.0, value=18000.0, step=1000.0)
+    st.sidebar.markdown("### 💳 Personal Finance",
+                        help="Input your monthly income to see your personalized Affordability Ratio for each region.")
+
+    user_salary = st.sidebar.number_input("Monthly Salary (PHP)", min_value=0, value=18000, step=1000)
 
     return selected_regions, active_categories, user_salary
 
 
 # --- 4. VISUALIZATION ENGINE ---
 
-def build_regional_choropleth(map_gdf: gpd.GeoDataFrame, highlight_indices: List[int]) -> go.Figure:
+def build_regional_choropleth(map_gdf: gpd.GeoDataFrame, highlight_indices: List[int], user_salary: float) -> go.Figure:
     """Generates the interactive PH map with affordability ranking on hover"""
     # Calculate affordability rank dynamically based on currently selected categories
     map_gdf['Exp_Rank'] = map_gdf['DYNAMIC_Z'].rank(ascending=True, method='min')
@@ -243,11 +261,12 @@ def build_regional_choropleth(map_gdf: gpd.GeoDataFrame, highlight_indices: List
         hovertemplate=(
             "<b>%{customdata[0]}</b><br>"
             "━━━━━━━━━━━━━━━━━━<br>"
-            "💰 Monthly Cost: ₱%{z:,.2f}<br>"
+            "💰 Monthly Cost: ₱%{z:,.0f}<br>"
             "🏆 Affordability Rank: #%{customdata[1]:.0f} of 17<br>"
+            "📊 Status: <span style='color:%{customdata[3]}'><b>%{customdata[2]}</b></span><br>" 
             "<extra></extra>"
         ),
-        customdata=map_gdf[['REGION', 'Exp_Rank']],
+        customdata=map_gdf[['REGION', 'Exp_Rank', 'Aff_Status', 'Aff_Color']],
     ))
     fig.update_layout(mapbox=dict(style="carto-positron", center={"lat": 12.8797, "lon": 121.7740}, zoom=4.4),
                       margin={"r": 0, "t": 0, "l": 0, "b": 0}, height=CHART_SIZE)
@@ -281,12 +300,13 @@ def build_horizontal_stacked_bar(map_gdf: gpd.GeoDataFrame, selected_regions: Li
 
     # Floating annotations for the total regional cost at the end of each bar
     for i, row in plot_df.iterrows():
-        # If Cost > Salary, color it red
-        status_color = "#4CAF50" if user_salary > row['TOTAL'] else "#F44336"
-        if user_salary == row['TOTAL']:
-            status_color = "#FFC107"
+        ratio = user_salary / row['TOTAL']
+        status_text, status_color = get_affordability_status(ratio)
+        icon = f"→   {status_text}"
+
         fig.add_annotation(x=row['TOTAL'], y=_shorten_region_name(row['REGION']),
-                           text=f" ₱{row['TOTAL']:,.0f}", showarrow=False,
+                           text=f" ₱{row['TOTAL']:,.0f} <span style='font-size:9px;'>   {icon}</span>",
+                           showarrow=False,
                            xanchor='left', font=dict(size=11, color=status_color))
 
     dynamic_height = max(300, len(selected_regions) * BAR_LENGTH_PER_REGION)
@@ -377,6 +397,13 @@ def main():
 
     # Dynamic column for choropleth mapping based on selected categories
     map_gdf['DYNAMIC_Z'] = map_gdf[selected_cats].sum(axis=1) if selected_cats else 0
+
+    map_gdf['Aff_Ratio'] = user_salary / map_gdf['DYNAMIC_Z'].replace(0, 1)
+    # Create the Status and Color columns using your variables
+    status_data = map_gdf['Aff_Ratio'].apply(get_affordability_status)
+    map_gdf['Aff_Status'] = status_data.apply(lambda x: x[0])
+    map_gdf['Aff_Color'] = status_data.apply(lambda x: x[1])
+
     indices_to_highlight = map_gdf.index[map_gdf['REGION'].isin(selected_regions)].tolist()
 
     # Dashboard Header Section
@@ -393,20 +420,23 @@ def main():
 
         k1, k2, k3 = st.columns(3)
         with k1:
-            st.metric("National Average Monthly Expenditure", f"₱{nat_avg:,.2f}")
+            st.metric("National Average Monthly Expenditure", f"₱{nat_avg:,.2f}",
+                      help="The baseline monthly cost for a typical individual across all PH regions")
         with k2:
             st.metric(f"Selection Average ({len(selected_regions)} Regions)", f"₱{sel_avg:,.2f}",
-                      delta=f"₱{sel_avg - nat_avg:,.2f} vs National Average")
+                      delta=f"₱{sel_avg - nat_avg:,.2f} vs National Average",
+                      help="The average cost of living for your currently selected PH regions")
         with k3:
             sel_ratio = user_salary / sel_avg if sel_avg > 0 else 0
             st.metric("Your Affordability Ratio", f"{sel_ratio:.2f}",
-                      delta=get_status(sel_ratio), delta_color="normal" if sel_ratio >= 1 else "inverse")
+                      delta=get_affordability_status(sel_ratio)[0], delta_color="normal" if sel_ratio >= 1 else "inverse",
+                      help="Calculated as PersonalMonthlyIncome / AverageMonthlyExpenditure ")
 
     # Main Geospatial Navigator
-    st.plotly_chart(build_regional_choropleth(map_gdf, indices_to_highlight), use_container_width=True)
+    st.plotly_chart(build_regional_choropleth(map_gdf, indices_to_highlight, user_salary), use_container_width=True)
 
     st.markdown("---")
-    st.subheader("📊 Regional Expenditure Comparison")
+    st.subheader("📊 Regional Expenditure Comparison", help="Compare how different spending categories stack up across your selected regions.")
 
     # Interactive sorting control for the bar chart
     sort_order = st.radio("Chart Sort Order:", ["Descending Value", "Official Regional Order"], horizontal=True)
@@ -416,7 +446,7 @@ def main():
                         use_container_width=True)
 
     st.markdown("---")
-    st.subheader("🔥 Regional Vulnerability Matrix")
+    st.subheader("🔥 Regional Vulnerability Matrix", help="A diagnostic view of climate and disaster risks. Higher scores indicate greater exposure to frequency, human, or economic impacts.")
 
     # Only bold a region in the heatmap if exactly ONE region is selected.
     # Prevents NCR bolding on "Select All" default.
@@ -427,6 +457,22 @@ def main():
 
     # Final Risk Matrix Visualization
     st.plotly_chart(build_risk_heatmap(risk_df, highlighted_region=heatmap_ref), use_container_width=True)
+
+    # Footer Reference Section
+    st.markdown("---")
+
+    with st.container():
+        st.markdown(f"""
+                <div class="project-footer">
+                    <p><b>Data Sources & References:</b><br>
+                    Expenditure: FIES Dataset (PSA 2023) • Boundaries: PH PSGC Shapefiles (PSA) • 
+                    Demographics: Population & GDP (PSA 2015-2024) • Risk: EM-DAT (2015-2024)
+                    </p>
+                    <p style="font-style: italic; opacity: 0.7;">
+                        Developed as a final requirement for DAT101M: Data Visualization at De La Salle University
+                    </p>
+                </div>
+            """, unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
