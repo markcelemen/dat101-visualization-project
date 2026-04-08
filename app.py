@@ -62,6 +62,12 @@ OFFICIAL_ORDER = [
     "Bangsamoro Autonomous Region in Muslim Mindanao"
 ]
 
+
+def get_status(ratio: float) -> str:
+    if ratio > 1: return "Affordable"
+    if ratio == 1: return "Break-even"
+    return "Unaffordable"
+
 class Expenditure(Enum):
     """Enum to handle expenditure category strings and UI labels"""
     FOOD = "FOOD_MONTHLY"
@@ -215,7 +221,11 @@ def initialize_sidebar_controls(region_options: List[str]) -> Tuple[List[str], L
         if st.sidebar.checkbox(label, key=category.name):
             active_categories.append(category.value)
 
-    return selected_regions, active_categories
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 💳 Personal Finance")
+    user_salary = st.sidebar.number_input("Monthly Salary (PHP)", min_value=0.0, value=18000.0, step=1000.0)
+
+    return selected_regions, active_categories, user_salary
 
 
 # --- 4. VISUALIZATION ENGINE ---
@@ -245,7 +255,7 @@ def build_regional_choropleth(map_gdf: gpd.GeoDataFrame, highlight_indices: List
 
 
 def build_horizontal_stacked_bar(map_gdf: gpd.GeoDataFrame, selected_regions: List[str], categories: List[str],
-                                 sort_order: str) -> go.Figure:
+                                 sort_order: str, user_salary: float) -> go.Figure:
     """Generates the bar chart comparing total regional costs, sorted by value or official order"""
     plot_df = map_gdf[map_gdf['REGION'].isin(selected_regions)].copy()
     plot_df['TOTAL'] = plot_df[categories].sum(axis=1)
@@ -271,9 +281,13 @@ def build_horizontal_stacked_bar(map_gdf: gpd.GeoDataFrame, selected_regions: Li
 
     # Floating annotations for the total regional cost at the end of each bar
     for i, row in plot_df.iterrows():
+        # If Cost > Salary, color it red
+        status_color = "#4CAF50" if user_salary > row['TOTAL'] else "#F44336"
+        if user_salary == row['TOTAL']:
+            status_color = "#FFC107"
         fig.add_annotation(x=row['TOTAL'], y=_shorten_region_name(row['REGION']),
                            text=f" ₱{row['TOTAL']:,.0f}", showarrow=False,
-                           xanchor='left', font=dict(size=11))
+                           xanchor='left', font=dict(size=11, color=status_color))
 
     dynamic_height = max(300, len(selected_regions) * BAR_LENGTH_PER_REGION)
     fig.update_layout(barmode='stack', template="plotly_white", height=dynamic_height,
@@ -359,7 +373,7 @@ def main():
     # Load styling and fetch data
     inject_custom_css()
     nat_avg_df, map_gdf, options_list, risk_df = fetch_and_preprocess_data()
-    selected_regions, selected_cats = initialize_sidebar_controls(options_list)
+    selected_regions, selected_cats, user_salary = initialize_sidebar_controls(options_list)
 
     # Dynamic column for choropleth mapping based on selected categories
     map_gdf['DYNAMIC_Z'] = map_gdf[selected_cats].sum(axis=1) if selected_cats else 0
@@ -377,12 +391,16 @@ def main():
         sel_avg = map_gdf[map_gdf['REGION'].isin(selected_regions)][selected_cats].sum(axis=1).mean()
         nat_avg = nat_avg_df[selected_cats].sum(axis=1).iloc[0]
 
-        k1, k2 = st.columns(2)
+        k1, k2, k3 = st.columns(3)
         with k1:
             st.metric("National Average Monthly Expenditure", f"₱{nat_avg:,.2f}")
         with k2:
             st.metric(f"Selection Average ({len(selected_regions)} Regions)", f"₱{sel_avg:,.2f}",
                       delta=f"₱{sel_avg - nat_avg:,.2f} vs National Average")
+        with k3:
+            sel_ratio = user_salary / sel_avg if sel_avg > 0 else 0
+            st.metric("Your Affordability Ratio", f"{sel_ratio:.2f}",
+                      delta=get_status(sel_ratio), delta_color="normal" if sel_ratio >= 1 else "inverse")
 
     # Main Geospatial Navigator
     st.plotly_chart(build_regional_choropleth(map_gdf, indices_to_highlight), use_container_width=True)
@@ -394,7 +412,7 @@ def main():
     sort_order = st.radio("Chart Sort Order:", ["Descending Value", "Official Regional Order"], horizontal=True)
 
     if selected_cats and selected_regions:
-        st.plotly_chart(build_horizontal_stacked_bar(map_gdf, selected_regions, selected_cats, sort_order),
+        st.plotly_chart(build_horizontal_stacked_bar(map_gdf, selected_regions, selected_cats, sort_order, user_salary),
                         use_container_width=True)
 
     st.markdown("---")
