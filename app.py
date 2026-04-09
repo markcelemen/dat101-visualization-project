@@ -163,7 +163,13 @@ def fetch_and_preprocess_data() -> Tuple[pd.DataFrame, gpd.GeoDataFrame, List[st
 # --- 3. UI STYLING & HELPERS ---
 
 def inject_custom_css():
-    st.set_page_config(layout="wide", page_title="NAVI Hub", page_icon="🇵🇭")
+    st.set_page_config(
+        layout="wide",
+        page_title="NAVI Hub",
+        page_icon="🇵🇭",
+        initial_sidebar_state="collapsed"  # 👈 mobile-friendly default
+    )
+
     st.markdown("""
     <style>
     button.viewerBadge_link__1S137, .main header, a.header-anchor { display: none !important; }
@@ -177,7 +183,6 @@ def inject_custom_css():
         height: 120px; 
     }
 
-    /* Center metric label */
     .stMetric > div {
         display: flex;
         flex-direction: column;
@@ -185,17 +190,56 @@ def inject_custom_css():
         justify-content: center;
     }
 
-    /* Center value (₱0.00) */
-    .stMetric [data-testid="stMetricValue"] {
-        text-align: center;
-        width: 100%;
-    }
-
-    /* Center delta (vs National Average / Affordable) */
+    .stMetric [data-testid="stMetricValue"],
     .stMetric [data-testid="stMetricDelta"] {
         text-align: center;
         width: 100%;
         justify-content: center;
+    }
+
+    /* Prevent horizontal scrolling */
+    .block-container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+        max-width: 100% !important;
+    }
+
+    /* 📱 MOBILE RESPONSIVENESS */
+    @media (max-width: 768px) {
+
+        /* Stack KPI cards */
+        div[data-testid="column"] {
+            width: 100% !important;
+            flex: 1 1 100% !important;
+        }
+
+        /* Reduce metric size */
+        .stMetric {
+            height: auto !important;
+            padding: 10px;
+        }
+
+        .stMetric [data-testid="stMetricValue"] {
+            font-size: 1.3rem !important;
+        }
+
+        .stMetric [data-testid="stMetricDelta"] {
+            font-size: 0.85rem !important;
+        }
+
+        /* Header scaling */
+        h1 {
+            font-size: 1.6rem !important;
+        }
+
+        p {
+            font-size: 0.9rem !important;
+        }
+
+        /* Sidebar becomes overlay-friendly */
+        section[data-testid="stSidebar"] {
+            width: 80% !important;
+        }
     }
 
     .project-footer {
@@ -205,7 +249,7 @@ def inject_custom_css():
         padding-top: 20px;
     }
     </style>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
 
 def _shorten_region_name(region: str) -> str:
@@ -295,7 +339,7 @@ def build_regional_choropleth(map_gdf: gpd.GeoDataFrame, highlight_indices: List
         customdata=map_gdf[['REGION', 'Exp_Rank', 'Aff_Status', 'Aff_Color']],
     ))
     fig.update_layout(mapbox=dict(style="carto-positron", center={"lat": 12.8797, "lon": 121.7740}, zoom=4.4),
-                      margin={"r": 0, "t": 0, "l": 0, "b": 0}, height=CHART_SIZE)
+                      margin={"r": 0, "t": 0, "l": 0, "b": 0}, height=None)
     return fig
 
 
@@ -343,7 +387,7 @@ def build_horizontal_stacked_bar(map_gdf: gpd.GeoDataFrame, selected_regions: Li
                            showarrow=False,
                            xanchor='left', font=dict(size=11, color=status_color))
 
-    dynamic_height = max(300, len(selected_regions) * BAR_LENGTH_PER_REGION)
+    dynamic_height = min(600, max(300, len(selected_regions) * 35))
     fig.update_layout(barmode='stack', template="plotly_white", height=dynamic_height,
                       margin={"t": 30, "b": 40, "l": 150, "r": 80},
                       xaxis=dict(title="Monthly Expenditure (PHP)", tickformat=",.0f", tickprefix="₱", showgrid=True),
@@ -476,7 +520,7 @@ def build_risk_heatmap(risk_df: pd.DataFrame, sort_order: str = "Selected Value/
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
         margin=dict(l=250, r=150, t=100, b=120),
-        height=700
+        height=550
     )
 
     return fig
@@ -513,7 +557,7 @@ def main():
         sel_avg = map_gdf[map_gdf['REGION'].isin(selected_regions)][selected_cats].sum(axis=1).mean()
         nat_avg = nat_avg_df[selected_cats].sum(axis=1).iloc[0]
 
-        k1, k2, k3 = st.columns(3)
+        k1, k2, k3 = st.columns([1,1,1], gap="small")
         with k1:
             st.metric("National Average Monthly Expenditure", f"₱{nat_avg:,.2f}",
                       help="The baseline monthly cost for a typical individual across all PH regions")
@@ -542,7 +586,11 @@ def main():
             )
 
     # Main Geospatial Navigator
-    st.plotly_chart(build_regional_choropleth(map_gdf, indices_to_highlight, user_salary), use_container_width=True)
+    st.plotly_chart(
+        build_regional_choropleth(map_gdf, indices_to_highlight, user_salary),
+        use_container_width=True,
+        config={"responsive": True}
+    )
 
     st.markdown("---")
     st.subheader("📊 Regional Expenditure Comparison", help="Compare how different spending categories stack up across your selected regions.")
@@ -551,8 +599,11 @@ def main():
     sort_order = st.radio("Chart Sort Order:", ["Descending Value", "Official Regional Order"], horizontal=True)
 
     if selected_cats and selected_regions:
-        st.plotly_chart(build_horizontal_stacked_bar(map_gdf, selected_regions, selected_cats, sort_order, user_salary),
-                        use_container_width=True)
+        st.plotly_chart(
+            build_horizontal_stacked_bar(map_gdf, selected_regions, selected_cats, sort_order, user_salary),
+            use_container_width=True,
+            config={"responsive": True}
+        )
 
     st.markdown("---")
     st.subheader("🔥 Regional Vulnerability Matrix", help="A diagnostic view of climate and disaster risks. Higher scores indicate greater exposure to frequency, human, or economic impacts.")
@@ -578,7 +629,11 @@ def main():
         heatmap_ref = None
 
     # Final Risk Matrix Visualization
-    st.plotly_chart(build_risk_heatmap(risk_df, sort_order=heatmap_sort_order, selected_regions=heatmap_regions, filter_to_selected=filter_to_selected), use_container_width=True)
+    st.plotly_chart(
+        build_risk_heatmap(risk_df, sort_order=heatmap_sort_order, selected_regions=heatmap_regions, filter_to_selected=filter_to_selected),
+        use_container_width=True,
+        config={"responsive": True}
+    )
 
     # Footer Reference Section
     st.markdown("---")
