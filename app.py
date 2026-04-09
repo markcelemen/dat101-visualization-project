@@ -352,7 +352,6 @@ def build_horizontal_stacked_bar(map_gdf: gpd.GeoDataFrame, selected_regions: Li
     if sort_order == "Descending Value":
         plot_df = plot_df.sort_values(by='TOTAL', ascending=True)
     else:
-        # Map regional names to their index in OFFICIAL_ORDER for sorting
         order_map = {name: i for i, name in enumerate(OFFICIAL_ORDER)}
         plot_df['sort_idx'] = plot_df['REGION'].map(order_map)
         plot_df = plot_df.sort_values(by='sort_idx', ascending=False)
@@ -366,7 +365,6 @@ def build_horizontal_stacked_bar(map_gdf: gpd.GeoDataFrame, selected_regions: Li
     }
 
     fig = go.Figure()
-    # Create a separate stack for each selected expenditure category
     for cat in categories:
         fig.add_trace(go.Bar(
             name=LEGEND_LABELS.get(cat, cat.replace('_MONTHLY', '').title()),
@@ -376,24 +374,49 @@ def build_horizontal_stacked_bar(map_gdf: gpd.GeoDataFrame, selected_regions: Li
             hovertemplate="<b>%{y}</b><br>" + f"{LEGEND_LABELS.get(cat, cat.replace('_MONTHLY', '').title())}: ₱%{{x:,.2f}}<extra></extra>"
         ))
 
-    # Floating annotations for the total regional cost at the end of each bar
     for i, row in plot_df.iterrows():
-        ratio = row['TOTAL'] / user_salary
-        status_text, status_color = get_affordability_status(ratio)
-        icon = f"→   {status_text}"
+        ratio = row['TOTAL'] / user_salary if user_salary > 0 else 999
+        _, status_color = get_affordability_status(ratio)
 
         fig.add_annotation(x=row['TOTAL'], y=_shorten_region_name(row['REGION']),
-                           text=f" ₱{row['TOTAL']:,.0f} <span style='font-size:9px;'>   {icon}</span>",
+                           text=f" ₱{row['TOTAL']:,.0f}",
                            showarrow=False,
                            xanchor='left', font=dict(size=11, color=status_color))
 
+    # Attach legend to x-axis label
+    combined_title = (
+        "Monthly Expenditure (PHP)<br><br>"
+        f"<span style='font-size:12px;'>"
+        f"<span style='color:{GREEN}'>● Affordable</span> &nbsp;&nbsp; "
+        f"<span style='color:{YELLOW}'>● Break-even</span> &nbsp;&nbsp; "
+        f"<span style='color:{RED}'>● Unaffordable</span>"
+        f"</span>"
+    )
+
     dynamic_height = min(600, max(300, len(selected_regions) * 35))
-    fig.update_layout(barmode='stack', template="plotly_white", height=dynamic_height,
-                      margin={"t": 30, "b": 40, "l": 150, "r": 80},
-                      xaxis=dict(title="Monthly Expenditure (PHP)", tickformat=",.0f", tickprefix="₱", showgrid=True),
-                      yaxis=dict(title=None, tickfont=dict(size=12)),
-                      legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0,
-                                  traceorder='normal', itemclick=False, itemdoubleclick=False))
+    fig.update_layout(
+        barmode='stack',
+        template="plotly_white",
+        height=dynamic_height,
+        margin={"t": 30, "b": 100, "l": 150, "r": 80},
+        xaxis=dict(
+            title=combined_title,
+            tickformat=",.0f",
+            tickprefix="₱",
+            showgrid=True
+        ),
+        yaxis=dict(title=None, tickfont=dict(size=12)),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="left",
+            x=0,
+            traceorder='normal',
+            itemclick=False,
+            itemdoubleclick=False
+        )
+    )
     return fig
 
 
