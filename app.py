@@ -518,7 +518,7 @@ def main():
             st.metric("National Average Monthly Expenditure", f"₱{nat_avg:,.2f}",
                       help="The baseline monthly cost for a typical individual across all PH regions")
         with k2:
-            st.metric(f"Selection Average ({len(selected_regions)} Regions)", f"₱{sel_avg:,.2f}",
+            st.metric(f"Selected Average ({len(selected_regions)} Regions)", f"₱{sel_avg:,.2f}",
                       delta=f"₱{sel_avg - nat_avg:,.2f} vs National Average",
                       help="The average cost of living for your currently selected PH regions")
         with k3:
