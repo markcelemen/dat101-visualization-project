@@ -33,6 +33,10 @@ AMBER_PALETTE = [
 LIGHT_AMBER = AMBER_PALETTE[0][1]
 DARK_AMBER = AMBER_PALETTE[-1][-1]
 
+GREY_PALETTE = [
+    [0.0, "#F0F0F0"],
+    [1.0, "#BDBDBD"]
+]
 GREEN = "#4CAF50"
 YELLOW = "#FFD300"
 RED = "#F44336"
@@ -319,7 +323,7 @@ def build_horizontal_stacked_bar(map_gdf: gpd.GeoDataFrame, selected_regions: Li
     return fig
 
 
-def build_risk_heatmap(risk_df: pd.DataFrame, highlighted_region: Optional[str] = None) -> go.Figure:
+def build_risk_heatmap(risk_df: pd.DataFrame, sort_order: str = "Selected Value/s", selected_regions: List[str] = None, filter_to_selected: bool = False) -> go.Figure:
     """Generates the heatmap displaying frequency and impact of disasters by region"""
     heatmap_df = risk_df[[
         'PH Region',
@@ -329,7 +333,21 @@ def build_risk_heatmap(risk_df: pd.DataFrame, highlighted_region: Optional[str] 
         'Disaster Risk Score'
     ]].copy()
     heatmap_df.columns = ['Region', 'Frequency', 'Human Impact', 'Economic Impact', 'Disaster Risk Score']
-    heatmap_df = heatmap_df.set_index('Region').sort_values('Disaster Risk Score', ascending=True)
+    heatmap_df = heatmap_df.set_index('Region')
+
+    # Sort by official order first, then split and reorder if needed
+    order_map = {name: i for i, name in enumerate(OFFICIAL_ORDER)}
+    heatmap_df['sort_idx'] = heatmap_df.index.map(order_map)
+    heatmap_df = heatmap_df.sort_values('sort_idx', ascending=False).drop(columns='sort_idx')
+
+    if sort_order == "By Risk Score":
+        heatmap_df = heatmap_df.sort_values('Disaster Risk Score', ascending=True)  # ascending=True puts highest at top
+    elif sort_order == "Selected Value/s" and selected_regions:
+        # Selected regions float to the top; rest stay in official order below
+        selected_set = set(selected_regions)
+        rest = heatmap_df[~heatmap_df.index.isin(selected_set)]
+        selected = heatmap_df[heatmap_df.index.isin(selected_set)]
+        heatmap_df = pd.concat([rest, selected])
 
     # Build multi-line hover strings for diagnostic detail in the heatmap
     hover_array = []
@@ -353,37 +371,83 @@ def build_risk_heatmap(risk_df: pd.DataFrame, highlighted_region: Optional[str] 
         )
         hover_array.append([hover] * len(heatmap_df.columns))
 
-    # Bold the specific region label if it is the only one selected in the navigator
-    y_labels = [f"<b>{r}</b>" if r == highlighted_region else r for r in heatmap_df.index]
+    # Bold label for all selected regions; plain text for the rest
+    selected_set = set(selected_regions) if selected_regions else set()
+    y_labels = [
+        f"<b>►&nbsp; {r}</b>" if r in selected_set else r
+        for r in heatmap_df.index
+    ]
+    colorbar_cfg = dict(
+        title="Risk Severity (0-100)", title_side='right',
+        tickmode='linear', tick0=0, dtick=10,
+        len=0.75, thickness=15,
+        tickfont=dict(color='black'), title_font=dict(color='black')
+    )
+
     fig = go.Figure()
-    fig.add_trace(go.Heatmap(
-        z=heatmap_df.values,
-        x=heatmap_df.columns,
-        y=heatmap_df.index,
-        colorscale=AMBER_PALETTE,
-        customdata=hover_array,
-        hovertemplate='%{customdata}<extra></extra>',
-        colorbar=dict(
-            title="Risk Severity (0-100)", title_side='right',
-            tickmode='linear', tick0=0, dtick=10,
-            len=0.75, thickness=15
-        ),
-        xgap=2, ygap=2
-    ))
+
+    if filter_to_selected and selected_regions:
+        selected_set = set(selected_regions)
+        all_y = list(heatmap_df.index)
+        all_x = heatmap_df.columns.tolist()
+        ncols = len(all_x)
+
+        grey_z, grey_hover, amber_z, amber_hover = [], [], [], []
+        for i, region in enumerate(all_y):
+            row_vals = heatmap_df.iloc[i].values.tolist()
+            if region in selected_set:
+                grey_z.append([None] * ncols)
+                grey_hover.append(hover_array[i])
+                amber_z.append(row_vals)
+                amber_hover.append(hover_array[i])
+            else:
+                grey_z.append(row_vals)
+                grey_hover.append(hover_array[i])
+                amber_z.append([None] * ncols)
+                amber_hover.append(hover_array[i])
+
+        fig.add_trace(go.Heatmap(
+            z=grey_z, x=all_x, y=all_y,
+            colorscale=GREY_PALETTE,
+            customdata=grey_hover,
+            hovertemplate='%{customdata}<extra></extra>',
+            showscale=False, zmin=0, zmax=100,
+            xgap=2, ygap=2
+        ))
+        fig.add_trace(go.Heatmap(
+            z=amber_z, x=all_x, y=all_y,
+            colorscale=AMBER_PALETTE,
+            customdata=amber_hover,
+            hovertemplate='%{customdata}<extra></extra>',
+            showscale=True, zmin=0, zmax=100,
+            colorbar=colorbar_cfg,
+            xgap=2, ygap=2
+        ))
+    else:
+        # Standard single-trace rendering
+        fig.add_trace(go.Heatmap(
+            z=heatmap_df.values,
+            x=heatmap_df.columns,
+            y=heatmap_df.index,
+            colorscale=AMBER_PALETTE,
+            customdata=hover_array,
+            hovertemplate='%{customdata}<extra></extra>',
+            colorbar=colorbar_cfg,
+            xgap=2, ygap=2
+        ))
     fig.update_layout(
         title={'text': '<b>Disaster Risk Profile Diagnostic</b>', 'x': 0.5, 'xanchor': 'center',
-               'font': {'size': 18}},
+               'font': {'size': 18, 'color': 'black'}},
         xaxis=dict(title='Risk Component', side='bottom',
-                   tickfont=dict(size=11), tickangle=-45, showgrid=False),
+                   tickfont=dict(size=11, color='black'), tickangle=-45, showgrid=False),
         yaxis=dict(title='Regions', tickmode='array',
                    tickvals=list(heatmap_df.index), ticktext=y_labels,
-                   tickfont=dict(size=11), showgrid=False),
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
+                   tickfont=dict(size=11, color='black'), showgrid=False),
+        plot_bgcolor='white', paper_bgcolor='white',
         margin=dict(l=250, r=150, t=100, b=120),
         height=700
     )
-    fig.update_traces(colorbar_tickfont_color=None, colorbar_title_font_color=None)
+
     return fig
 
 
@@ -462,6 +526,19 @@ def main():
     st.markdown("---")
     st.subheader("🔥 Regional Vulnerability Matrix", help="A diagnostic view of climate and disaster risks. Higher scores indicate greater exposure to frequency, human, or economic impacts.")
 
+    # Interactive sorting control for the heatmap
+    heatmap_sort_order = st.radio("Chart Sort Order:", ["Selected Value/s", "Official Regional Order", "By Risk Score"], horizontal=True, key="heatmap_sort")
+
+    # Show filter toggle only when a subset of regions is selected
+    all_selected = len(selected_regions) == len(options_list)
+    if not all_selected:
+        filter_to_selected = st.checkbox("Highlight selected regions only", value=False, key="heatmap_filter")
+    else:
+        filter_to_selected = False
+
+    # When all regions are selected, suppress highlights (nothing stands out if everything is selected)
+    heatmap_regions = None if all_selected else selected_regions
+
     # Only bold a region in the heatmap if exactly ONE region is selected.
     # Prevents NCR bolding on "Select All" default.
     if len(selected_regions) == 1:
@@ -470,7 +547,7 @@ def main():
         heatmap_ref = None
 
     # Final Risk Matrix Visualization
-    st.plotly_chart(build_risk_heatmap(risk_df, highlighted_region=heatmap_ref), use_container_width=True)
+    st.plotly_chart(build_risk_heatmap(risk_df, sort_order=heatmap_sort_order, selected_regions=heatmap_regions, filter_to_selected=filter_to_selected), use_container_width=True)
 
     # Footer Reference Section
     st.markdown("---")
