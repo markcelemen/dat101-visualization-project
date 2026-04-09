@@ -454,8 +454,7 @@ def build_risk_heatmap(risk_df: pd.DataFrame, sort_order: str = "Selected Value/
     colorbar_cfg = dict(
         title="Risk Severity (0-100)", title_side='right',
         tickmode='linear', tick0=0, dtick=10,
-        len=0.75, thickness=15,
-        tickfont=dict(color='black'), title_font=dict(color='black')
+        len=0.75, thickness=15
     )
 
     fig = go.Figure()
