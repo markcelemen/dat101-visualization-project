@@ -165,25 +165,47 @@ def fetch_and_preprocess_data() -> Tuple[pd.DataFrame, gpd.GeoDataFrame, List[st
 def inject_custom_css():
     st.set_page_config(layout="wide", page_title="NAVI Hub", page_icon="🇵🇭")
     st.markdown("""
-        <style>
-        button.viewerBadge_link__1S137, .main header, a.header-anchor { display: none !important; }
-        .stMetric { 
-            padding: 15px; 
-            border-radius: 8px; 
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1); 
-            border: 1px solid #eee; 
-            text-align: center; 
-            height: 120px; 
-        }
-        /* Minimal footer style */
-        .project-footer {
-            text-align: center;
-            color: gray;
-            font-size: 0.85rem;
-            padding-top: 20px;
-        }
-        </style>
-    """, unsafe_allow_html=True)
+    <style>
+    button.viewerBadge_link__1S137, .main header, a.header-anchor { display: none !important; }
+
+    .stMetric { 
+        padding: 15px; 
+        border-radius: 8px; 
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1); 
+        border: 1px solid #eee; 
+        text-align: center; 
+        height: 120px; 
+    }
+
+    /* Center metric label */
+    .stMetric > div {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Center value (₱0.00) */
+    .stMetric [data-testid="stMetricValue"] {
+        text-align: center;
+        width: 100%;
+    }
+
+    /* Center delta (vs National Average / Affordable) */
+    .stMetric [data-testid="stMetricDelta"] {
+        text-align: center;
+        width: 100%;
+        justify-content: center;
+    }
+
+    .project-footer {
+        text-align: center;
+        color: gray;
+        font-size: 0.85rem;
+        padding-top: 20px;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 
 def _shorten_region_name(region: str) -> str:
