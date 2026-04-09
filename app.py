@@ -373,7 +373,7 @@ def build_horizontal_stacked_bar(map_gdf: gpd.GeoDataFrame, selected_regions: Li
             y=plot_df['REGION'].apply(_shorten_region_name),
             x=plot_df[cat],
             orientation='h', marker_color=CATEGORY_COLORS.get(cat),
-            hovertemplate="<b>%{y}</b><br>" + f"{cat.replace('_MONTHLY', '').title()}: ₱%{{x:,.2f}}<extra></extra>"
+            hovertemplate="<b>%{y}</b><br>" + f"{LEGEND_LABELS.get(cat, cat.replace('_MONTHLY', '').title())}: ₱%{{x:,.2f}}<extra></extra>"
         ))
 
     # Floating annotations for the total regional cost at the end of each bar
