@@ -291,11 +291,19 @@ def build_horizontal_stacked_bar(map_gdf: gpd.GeoDataFrame, selected_regions: Li
         plot_df['sort_idx'] = plot_df['REGION'].map(order_map)
         plot_df = plot_df.sort_values(by='sort_idx', ascending=False)
 
+    LEGEND_LABELS = {
+        "FOOD_MONTHLY": "Food",
+        "CLOTH_MONTHLY": "Cloth",
+        "HOUSING_WATER_MONTHLY": "Housing & Water",
+        "HEALTH_MONTHLY": "Health",
+        "EDUCATION_MONTHLY": "Education",
+    }
+
     fig = go.Figure()
     # Create a separate stack for each selected expenditure category
     for cat in categories:
         fig.add_trace(go.Bar(
-            name=cat.replace('_MONTHLY', '').title(),
+            name=LEGEND_LABELS.get(cat, cat.replace('_MONTHLY', '').title()),
             y=plot_df['REGION'].apply(_shorten_region_name),
             x=plot_df[cat],
             orientation='h', marker_color=CATEGORY_COLORS.get(cat),
