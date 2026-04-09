@@ -437,13 +437,14 @@ def build_risk_heatmap(risk_df: pd.DataFrame, sort_order: str = "Selected Value/
         ))
     fig.update_layout(
         title={'text': '<b>Disaster Risk Profile Diagnostic</b>', 'x': 0.5, 'xanchor': 'center',
-               'font': {'size': 18, 'color': 'black'}},
+               'font': {'size': 18}},
         xaxis=dict(title='Risk Component', side='bottom',
-                   tickfont=dict(size=11, color='black'), tickangle=-45, showgrid=False),
+                   tickfont=dict(size=11), tickangle=-45, showgrid=False),
         yaxis=dict(title='Regions', tickmode='array',
                    tickvals=list(heatmap_df.index), ticktext=y_labels,
-                   tickfont=dict(size=11, color='black'), showgrid=False),
-        plot_bgcolor='white', paper_bgcolor='white',
+                   tickfont=dict(size=11), showgrid=False),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
         margin=dict(l=250, r=150, t=100, b=120),
         height=700
     )
