@@ -373,7 +373,7 @@ def build_horizontal_stacked_bar(map_gdf: gpd.GeoDataFrame, selected_regions: Li
             y=plot_df['REGION'].apply(_shorten_region_name),
             x=plot_df[cat],
             orientation='h', marker_color=CATEGORY_COLORS.get(cat),
-            hovertemplate="<b>%{y}</b><br>" + f"{cat.replace('_MONTHLY', '').title()}: ₱%{{x:,.2f}}<extra></extra>"
+            hovertemplate="<b>%{y}</b><br>" + f"{LEGEND_LABELS.get(cat, cat.replace('_MONTHLY', '').title())}: ₱%{{x:,.2f}}<extra></extra>"
         ))
 
     # Floating annotations for the total regional cost at the end of each bar
@@ -512,10 +512,10 @@ def build_risk_heatmap(risk_df: pd.DataFrame, sort_order: str = "Selected Value/
         title={'text': '<b>Disaster Risk Profile Diagnostic</b>', 'x': 0.5, 'xanchor': 'center',
                'font': {'size': 18}},
         xaxis=dict(title='Risk Component', side='bottom',
-                   tickfont=dict(size=11), tickangle=-45, showgrid=False),
-        yaxis=dict(title='Regions', tickmode='array',
+                   tickfont=dict(size=12), tickangle=-45, showgrid=False),
+        yaxis=dict(title=None, tickmode='array',
                    tickvals=list(heatmap_df.index), ticktext=y_labels,
-                   tickfont=dict(size=11), showgrid=False),
+                   tickfont=dict(size=12), showgrid=False),
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
         margin=dict(l=250, r=150, t=100, b=120),
